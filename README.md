@@ -73,6 +73,7 @@ Le frontend sera accessible à l'adresse indiquée dans la console (par défaut 
     ```
 
 Il est possible que la commande `mysql` ne fonctionne pas. Ajoutez le chemin vers le binaire installé lors de l'installation de MariaDB dans vos variables d'environnement.
+
 ---
 
 ## Configuration du fichier `.env`
