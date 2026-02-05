@@ -1,0 +1,84 @@
+version: "3.6"
+
+services:
+  # --- Traefik : Le chef d'orchestre ---
+  traefik:
+    image: traefik:v3.6
+    container_name: traefik
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    command:
+      # API et Dashboard
+      - "--api.dashboard=true"
+      # Provider Docker
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=proxy"
+      # Provider File (Configuration dynamique pour TLS)
+      - "--providers.file.directory=/dynamic"
+      - "--providers.file.watch=true"
+      # EntryPoints
+      - "--entryPoints.web.address=:80"
+      - "--entryPoints.websecure.address=:443"
+      # Redirection automatique HTTP vers HTTPS
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./dynamic:/dynamic:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.elerig.fr`)"
+      - "traefik.http.routers.traefik.entrypoints=websecure" # Sécurisé
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.routers.traefik.tls=true"
+
+  # --- TinyAuth : Gestionnaire d'authentification Google ---
+  tinyauth:
+    image: ghcr.io/steveiliop56/tinyauth:v4
+    container_name: tinyauth
+    restart: unless-stopped
+    volumes:
+      - ./data_tinyauth:/data
+    networks:
+      - proxy
+    environment:
+      - APP_URL=https://tinyauth.elerig.fr
+      - USERS=user:$$2a$$10$$UdLYoJ5lgPsC0RKqYH/jMua7zIn0g9kPqWmhYayJYLaZQ/FTmH2/u
+      - PROVIDERS_GOOGLE_CLIENT_ID=385742413786-q4v810pn309cplor9t782knr8g4obs7p.apps.googleusercontent.com
+      - PROVIDERS_GOOGLE_CLIENT_SECRET=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
+      - OAUTH_WHITELISTE=elerig.martin.22@gmail.com
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.tinyauth.rule=Host(`tinyauth.elerig.fr`)"
+      - "traefik.http.routers.tinyauth.entrypoints=websecure"
+      - "traefik.http.routers.tinyauth.tls=true"
+      - "traefik.http.services.tinyauth.loadbalancer.server.port=3000"
+
+  # --- Uptime-Kuma : Monitoring ---
+  uptime-kuma:
+    image: louislam/uptime-kuma:2
+    container_name: uptime-kuma
+    restart: unless-stopped
+    volumes:
+      - ./data_uptime:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.uptime-kuma.rule=Host(`uptime.elerig.fr`)"
+      - "traefik.http.routers.uptime-kuma.entrypoints=websecure"
+      - "traefik.http.routers.uptime-kuma.tls=true"
+      - "traefik.http.services.uptime-kuma.loadbalancer.server.port=3001"
+
+networks:
+  proxy:
+    external: true
