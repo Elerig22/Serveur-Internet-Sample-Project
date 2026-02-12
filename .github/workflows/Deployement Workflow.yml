@@ -3,7 +3,7 @@ name: Deployement Workflow
 on:
   push:
     branches: ["main"]
-  workflow_dispatch: # permet d'avoir un bouton "Run Workflow" sur GitHub dans la section Actions
+  workflow_dispatch:
  
 jobs:
   Deploy-Docker-Infra:
@@ -15,18 +15,30 @@ jobs:
       - name: Deploy on remote server
         uses: appleboy/ssh-action@v1.2.0
         env:
+          # On récupère tous les secrets nécessaires pour Docker Compose
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+          NETWORK_NAME: ${{ secrets.NETWORK_NAME }}
+          AUTH_MIDDLEWARE: ${{ secrets.AUTH_MIDDLEWARE }}
+          TRAEFIK_SUBDOMAIN: ${{ secrets.TRAEFIK_SUBDOMAIN }}
+          # Ajoutez ici d'autres variables si nécessaire (DB_HOST, etc.)
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: GH_TOKEN
+          # INDISPENSABLE : On liste les variables à transférer au serveur
+          envs: GH_TOKEN, DOMAIN, NETWORK_NAME, AUTH_MIDDLEWARE, TRAEFIK_SUBDOMAIN
           script: |
-            # 1. Se déplacer dans le répertoire sur le serveur
-            cd ~/srv/traefik
-            # 2. Supprimer l'ancien dossier pour éviter les conflits
+            # 1. Créer le réseau externe s'il n'existe pas pour éviter l'erreur de tout à l'heure
+            docker network create ${NETWORK_NAME} || true
+            
+            # 2. Se déplacer dans le répertoire
+            mkdir -p ~/srv/traefik && cd ~/srv/traefik
+            
+            # 3. Nettoyage et clonage propre
             rm -rf Serveur-Internet-Sample-Project
-            # 3. Cloner votre répertoire en utilisant le token
-            git clone https://$GH_TOKEN@github.com/Wmartel31/Serveur-Internet-Sample-Project.git
-            # 4. Lancer votre infrastructure
+            git clone https://x-access-token:${GH_TOKEN}@github.com/Wmartel31/Serveur-Internet-Sample-Project.git
+            
+            # 4. Lancer l'infrastructure
+            cd Serveur-Internet-Sample-Project
             docker compose up -d --build
