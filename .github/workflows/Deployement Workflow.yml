@@ -15,38 +15,94 @@ jobs:
       - name: Deploy on remote server
         uses: appleboy/ssh-action@v1.2.0
         env:
+          # Mapping de TOUS les secrets détectés sur votre image
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           DOMAIN: ${{ secrets.DOMAIN }}
-          # ATTENTION : vérifiez si votre secret est NETWORK_NAME ou NETWORK_NAM
-          NETWORK_NAME: ${{ secrets.NETWORK_NAME }} 
-          TRAEFIK_SUBDOMAIN: ${{ secrets.TRAEFIK_SUBDOMAIN }}
+          NETWORK_NAME: ${{ secrets.NETWORK_NAM }} # Corrigé selon votre image (NAM)
+          AUTH_MIDDLEWARE: ${{ secrets.AUTH_MIDDLEWARE }}
+          TZ: ${{ secrets.TZ }}
+          # Base de données
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          # Ajoutez ici toutes les variables dont le backend a besoin
+          # Ports et Subdomains
+          BACK_PORT: ${{ secrets.BACK_PORT }}
+          FRONT_PORT: ${{ secrets.FRONT_PORT }}
+          F2B_PORT: ${{ secrets.F2B_PORT }}
+          UPTIME_PORT: ${{ secrets.UPTIME_PORT }}
+          UPTIME_SUBDOMAIN: ${{ secrets.UPTIME_SUBDOMAIN }}
+          WIKI_PORT: ${{ secrets.WIKI_PORT }}
+          WIKI_SUBDOMAIN: ${{ secrets.WIKI_SUBDOMAIN }}
+          TASKLIST_SUBDOMAIN: ${{ secrets.TASKLIST_SUBDOMAIN }}
+          TRAEFIK_SUBDOMAIN: ${{ secrets.TRAEFIK_SUBDOMAIN }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: GH_TOKEN,DOMAIN,NETWORK_NAME,TRAEFIK_SUBDOMAIN,DB_PASSWORD
+          # Exportation des variables vers la session SSH
+          envs: GH_TOKEN,DOMAIN,NETWORK_NAME,AUTH_MIDDLEWARE,TZ,DB_HOST,DB_NAME,DB_USER,DB_PASSWORD,BACK_PORT,FRONT_PORT,F2B_PORT,UPTIME_PORT,UPTIME_SUBDOMAIN,WIKI_PORT,WIKI_SUBDOMAIN,TASKLIST_SUBDOMAIN,TRAEFIK_SUBDOMAIN
           script: |
-            # 1. Vérification de sécurité pour le réseau
-            if [ -z "$NETWORK_NAME" ]; then NETWORK_NAME="web-proxy"; fi
-            docker network create $NETWORK_NAME || true
-            
-            # 2. Préparation du dossier
-            mkdir -p ~/srv/traefik && cd ~/srv/traefik
-            rm -rf Serveur-Internet-Sample-Project
-            
-            # 3. Clonage
-            git clone https://x-access-token:${GH_TOKEN}@github.com/Wmartel31/Serveur-Internet-Sample-Project.git
-            cd Serveur-Internet-Sample-Project
-            
-            # 4. CRÉATION DU FICHIER .ENV (C'est ce qui manquait !)
-            # On crée le fichier pour que Docker ne râle plus
-            cat <<EOF > backend/.env
-            DB_PASSWORD=${DB_PASSWORD}
+            # --- 1. INITIALISATION ---
+            # Utilisation de NETWORK_NAME (venant du secret NETWORK_NAM)
+            docker network create ${NETWORK_NAME} || true
+
+            cd ~
+            rm -rf temp_repo
+            git clone https://x-access-token:${GH_TOKEN}@github.com/Wmartel31/Serveur-Internet-Sample-Project.git temp_repo
+
+            # --- 2. COPIE RÉCURSIVE (ÉTAPE 8) ---
+            mkdir -p ~/srv
+            cp -r ~/temp_repo/srv/* ~/srv/
+
+            # --- 3. NETTOYAGE (ÉTAPE 9) ---
+            rm -rf ~/temp_repo
+
+            # --- 4. CONFIGURATION ET LANCEMENT (ÉTAPES 10, 11, 12) ---
+
+            # SERVICE: Traefik
+            cat <<EOF > ~/srv/traefik/.env
             DOMAIN=${DOMAIN}
             NETWORK_NAME=${NETWORK_NAME}
+            TRAEFIK_SUBDOMAIN=${TRAEFIK_SUBDOMAIN}
+            AUTH_MIDDLEWARE=${AUTH_MIDDLEWARE}
+            TZ=${TZ}
             EOF
-            
-            # 5. Lancement
-            docker compose up -d --build
+            cd ~/srv/traefik && docker compose up -d --build --force-recreate
+
+            # SERVICE: Tasklist
+            cat <<EOF > ~/srv/tasklist/.env
+            DOMAIN=${DOMAIN}
+            NETWORK_NAME=${NETWORK_NAME}
+            TASKLIST_SUBDOMAIN=${TASKLIST_SUBDOMAIN}
+            DB_PASSWORD=${DB_PASSWORD}
+            EOF
+            cd ~/srv/tasklist && docker compose up -d --build --force-recreate
+
+            # SERVICE: Wiki
+            cat <<EOF > ~/srv/wiki/.env
+            DOMAIN=${DOMAIN}
+            NETWORK_NAME=${NETWORK_NAME}
+            WIKI_SUBDOMAIN=${WIKI_SUBDOMAIN}
+            WIKI_PORT=${WIKI_PORT}
+            EOF
+            cd ~/srv/wiki && docker compose up -d --build --force-recreate
+
+            # SERVICE: Monitoring (Uptime Kuma, etc.)
+            cat <<EOF > ~/srv/monitoring/.env
+            DOMAIN=${DOMAIN}
+            NETWORK_NAME=${NETWORK_NAME}
+            UPTIME_SUBDOMAIN=${UPTIME_SUBDOMAIN}
+            UPTIME_PORT=${UPTIME_PORT}
+            EOF
+            cd ~/srv/monitoring && docker compose up -d --build --force-recreate
+
+            # SERVICE: Fail2Ban
+            cat <<EOF > ~/srv/fail2ban/.env
+            F2B_PORT=${F2B_PORT}
+            TZ=${TZ}
+            EOF
+            cd ~/srv/fail2ban && docker compose up -d --build --force-recreate
+
+            # --- 5. MAINTENANCE ---
+            docker image prune -f
