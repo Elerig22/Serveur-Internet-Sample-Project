@@ -1,0 +1,42 @@
+services:
+  fail2ban:
+    image: lscr.io/linuxserver/fail2ban:latest
+    container_name: fail2ban
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_ADMIN
+    networks:
+      - proxy
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - ./fail2ban-config:/config:z
+      - ./f2b-run:/var/run/fail2ban:z
+      - /var/log:/var/log:ro
+    restart: unless-stopped
+
+  fail2ban-ui:
+    image: swissmakers/fail2ban-ui:latest
+    container_name: fail2ban-ui
+    privileged: true
+    networks:
+      - proxy
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - ./config:/config:z
+      - /var/log:/var/log:ro
+      - ./fail2ban-config/fail2ban:/etc/fail2ban:z
+      - ./f2b-run:/var/run/fail2ban:z
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fail2ban-ui.rule=Host(`${F2B_SUBDOMAIN}.${DOMAIN}`)"
+      - "traefik.http.routers.fail2ban-ui.entrypoints=websecure"
+      - "traefik.http.routers.fail2ban-ui.tls.certresolver=myresolver"
+      - "traefik.http.services.fail2ban-ui.loadbalancer.server.port=${F2B_UI_PORT}"
+
+networks:
+  proxy:
+    external: true
