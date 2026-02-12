@@ -15,35 +15,42 @@ jobs:
       - name: Deploy on remote server
         uses: appleboy/ssh-action@v1.2.0
         env:
-          # 1. On récupère les secrets de GitHub pour les rendre disponibles dans l'action
+          # On mappe TOUS vos secrets ici
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           DOMAIN: ${{ secrets.DOMAIN }}
           NETWORK_NAME: ${{ secrets.NETWORK_NAME }}
-          AUTH_MIDDLEWARE: ${{ secrets.AUTH_MIDDLEWARE }}
           TRAEFIK_SUBDOMAIN: ${{ secrets.TRAEFIK_SUBDOMAIN }}
-          # Ajoutez ici d'autres secrets si nécessaire (ex: DB_PASSWORD)
+          AUTH_MIDDLEWARE: ${{ secrets.AUTH_MIDDLEWARE }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          UPTIME_SUBDOMAIN: ${{ secrets.UPTIME_SUBDOMAIN }}
+          WIKI_SUBDOMAIN: ${{ secrets.WIKI_SUBDOMAIN }}
+          TASKLIST_SUBDOMAIN: ${{ secrets.TASKLIST_SUBDOMAIN }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # 2. On autorise explicitement ces variables à passer à travers la connexion SSH
-          envs: GH_TOKEN, DOMAIN, NETWORK_NAME, AUTH_MIDDLEWARE, TRAEFIK_SUBDOMAIN
+          # On les injecte dans la session SSH (vérifiez bien l'orthographe de NETWORK_NAME)
+          envs: GH_TOKEN,DOMAIN,NETWORK_NAME,TRAEFIK_SUBDOMAIN,AUTH_MIDDLEWARE,DB_HOST,DB_NAME,DB_USER,DB_PASSWORD,UPTIME_SUBDOMAIN,WIKI_SUBDOMAIN,TASKLIST_SUBDOMAIN
           script: |
-            # S'assurer que le réseau externe existe (évite l'erreur 'network not found')
+            # 1. Création du réseau (primordial pour l'erreur 'network not found')
+            # Si votre secret s'appelle NETWORK_NAM (sans E), utilisez $NETWORK_NAM
             docker network create ${NETWORK_NAME} || true
             
-            # Aller dans le dossier de travail
-            mkdir -p ~/srv/traefik
-            cd ~/srv/traefik
-            
-            # Nettoyage radical du dossier pour éviter les erreurs de lock 'config file'
+            # 2. Préparation du dossier
+            mkdir -p ~/srv/traefik && cd ~/srv/traefik
             rm -rf Serveur-Internet-Sample-Project
             
-            # Clonage frais avec le token d'accès
+            # 3. Clonage
             git clone https://x-access-token:${GH_TOKEN}@github.com/Wmartel31/Serveur-Internet-Sample-Project.git
-            
-            # Entrer dans le projet et déployer
             cd Serveur-Internet-Sample-Project
             
-            # On lance docker-compose. Les variables passées par 'envs' seront lues ici.
+            # 4. Lancement avec injection forcée des variables
+            # On utilise 'export' pour être sûr que Docker Compose les voit
+            export DOMAIN=$DOMAIN
+            export NETWORK_NAME=$NETWORK_NAME
+            export TRAEFIK_SUBDOMAIN=$TRAEFIK_SUBDOMAIN
+            
             docker compose up -d --build
