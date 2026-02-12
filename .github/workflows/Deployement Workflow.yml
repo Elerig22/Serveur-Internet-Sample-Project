@@ -1,44 +1,49 @@
 name: Deployement Workflow
- 
+
 on:
   push:
     branches: ["main"]
   workflow_dispatch:
- 
+
 jobs:
   Deploy-Docker-Infra:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
- 
+
       - name: Deploy on remote server
         uses: appleboy/ssh-action@v1.2.0
         env:
-          # On récupère tous les secrets nécessaires pour Docker Compose
+          # 1. On récupère les secrets de GitHub pour les rendre disponibles dans l'action
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           DOMAIN: ${{ secrets.DOMAIN }}
           NETWORK_NAME: ${{ secrets.NETWORK_NAME }}
           AUTH_MIDDLEWARE: ${{ secrets.AUTH_MIDDLEWARE }}
           TRAEFIK_SUBDOMAIN: ${{ secrets.TRAEFIK_SUBDOMAIN }}
-          # Ajoutez ici d'autres variables si nécessaire (DB_HOST, etc.)
+          # Ajoutez ici d'autres secrets si nécessaire (ex: DB_PASSWORD)
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # INDISPENSABLE : On liste les variables à transférer au serveur
+          # 2. On autorise explicitement ces variables à passer à travers la connexion SSH
           envs: GH_TOKEN, DOMAIN, NETWORK_NAME, AUTH_MIDDLEWARE, TRAEFIK_SUBDOMAIN
           script: |
-            # 1. Créer le réseau externe s'il n'existe pas pour éviter l'erreur de tout à l'heure
+            # S'assurer que le réseau externe existe (évite l'erreur 'network not found')
             docker network create ${NETWORK_NAME} || true
             
-            # 2. Se déplacer dans le répertoire
-            mkdir -p ~/srv/traefik && cd ~/srv/traefik
+            # Aller dans le dossier de travail
+            mkdir -p ~/srv/traefik
+            cd ~/srv/traefik
             
-            # 3. Nettoyage et clonage propre
+            # Nettoyage radical du dossier pour éviter les erreurs de lock 'config file'
             rm -rf Serveur-Internet-Sample-Project
+            
+            # Clonage frais avec le token d'accès
             git clone https://x-access-token:${GH_TOKEN}@github.com/Wmartel31/Serveur-Internet-Sample-Project.git
             
-            # 4. Lancer l'infrastructure
+            # Entrer dans le projet et déployer
             cd Serveur-Internet-Sample-Project
+            
+            # On lance docker-compose. Les variables passées par 'envs' seront lues ici.
             docker compose up -d --build
