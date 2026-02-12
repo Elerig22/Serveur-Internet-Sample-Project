@@ -15,10 +15,9 @@ jobs:
       - name: Deploy on remote server
         uses: appleboy/ssh-action@v1.2.0
         env:
-          # Mapping des secrets GitHub
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           DOMAIN: ${{ secrets.DOMAIN }}
-          NETWORK_NAME: ${{ secrets.NETWORK_NAM }} # Correction basée sur ton image (NAM)
+          NETWORK_NAME: ${{ secrets.NETWORK_NAM }} 
           AUTH_MIDDLEWARE: ${{ secrets.AUTH_MIDDLEWARE }}
           TZ: ${{ secrets.TZ }}
           DB_HOST: ${{ secrets.DB_HOST }}
@@ -32,16 +31,19 @@ jobs:
           WIKI_PORT: ${{ secrets.WIKI_PORT }}
           UPTIME_PORT: ${{ secrets.UPTIME_PORT }}
           F2B_PORT: ${{ secrets.F2B_PORT }}
+          # Ajout des ports manquants pour Tasklist
+          FRONT_PORT: ${{ secrets.FRONT_PORT }}
+          BACK_PORT: ${{ secrets.BACK_PORT }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: GH_TOKEN,DOMAIN,NETWORK_NAME,AUTH_MIDDLEWARE,TZ,DB_HOST,DB_NAME,DB_USER,DB_PASSWORD,TRAEFIK_SUBDOMAIN,TASKLIST_SUBDOMAIN,WIKI_SUBDOMAIN,UPTIME_SUBDOMAIN,WIKI_PORT,UPTIME_PORT,F2B_PORT
+          envs: GH_TOKEN,DOMAIN,NETWORK_NAME,AUTH_MIDDLEWARE,TZ,DB_HOST,DB_NAME,DB_USER,DB_PASSWORD,TRAEFIK_SUBDOMAIN,TASKLIST_SUBDOMAIN,WIKI_SUBDOMAIN,UPTIME_SUBDOMAIN,WIKI_PORT,UPTIME_PORT,F2B_PORT,FRONT_PORT,BACK_PORT
           script: |
             # 1. Préparation du réseau
             docker network create ${NETWORK_NAME} || true
 
-            # 2. Clonage et mise à jour des fichiers (Étapes 8 & 9)
+            # 2. Mise à jour des fichiers (Étapes 8 & 9)
             cd ~
             rm -rf temp_repo
             git clone https://x-access-token:${GH_TOKEN}@github.com/Elerig22/Serveur-Internet-Sample-Project.git temp_repo
@@ -49,9 +51,9 @@ jobs:
             cp -r ~/temp_repo/srv/* ~/srv/
             rm -rf ~/temp_repo
 
-            # 3. Étape 10, 11 & 12 : Configuration et Lancement par service
-            
-            # --- TRAEFIK (Indispensable en premier) ---
+            # 3. Lancement des services (Étape 10, 11 & 12)
+
+            # --- TRAEFIK ---
             cat <<EOF > ~/srv/traefik/.env
             DOMAIN=${DOMAIN}
             NETWORK_NAME=${NETWORK_NAME}
@@ -59,19 +61,23 @@ jobs:
             AUTH_MIDDLEWARE=${AUTH_MIDDLEWARE}
             TZ=${TZ}
             EOF
-            cd ~/srv/traefik && docker compose up -d --build --force-recreate
+            cd ~/srv/traefik && docker compose down && docker compose up -d --build --force-recreate
 
-            # --- TASKLIST ---
+            # --- TASKLIST (Avec gestion des variables de port et domaine spécifiques) ---
             cat <<EOF > ~/srv/tasklist/.env
             DOMAIN=${DOMAIN}
+            DOMAIN_TASKLIST=${TASKLIST_SUBDOMAIN}.${DOMAIN}
             NETWORK_NAME=${NETWORK_NAME}
-            TASKLIST_SUBDOMAIN=${TASKLIST_SUBDOMAIN}
+            FRONTEND_PORT=${FRONT_PORT}
+            BACKEND_PORT=${BACK_PORT}
+            BACKEND_HOST=backend
             DB_HOST=${DB_HOST}
             DB_NAME=${DB_NAME}
             DB_USER=${DB_USER}
             DB_PASSWORD=${DB_PASSWORD}
+            DB_ROOT_PASSWORD=${DB_PASSWORD}
             EOF
-            cd ~/srv/tasklist && docker compose up -d --build --force-recreate
+            cd ~/srv/tasklist && docker compose down && docker compose up -d --build --force-recreate
 
             # --- WIKI ---
             cat <<EOF > ~/srv/wiki/.env
@@ -80,7 +86,7 @@ jobs:
             WIKI_SUBDOMAIN=${WIKI_SUBDOMAIN}
             WIKI_PORT=${WIKI_PORT}
             EOF
-            cd ~/srv/wiki && docker compose up -d --build --force-recreate
+            cd ~/srv/wiki && docker compose down && docker compose up -d --build --force-recreate
 
             # --- MONITORING ---
             cat <<EOF > ~/srv/monitoring/.env
@@ -89,14 +95,8 @@ jobs:
             UPTIME_SUBDOMAIN=${UPTIME_SUBDOMAIN}
             UPTIME_PORT=${UPTIME_PORT}
             EOF
-            cd ~/srv/monitoring && docker compose up -d --build --force-recreate
+            cd ~/srv/monitoring && docker compose down && docker compose up -d --build --force-recreate
 
             # --- FAIL2BAN ---
             cat <<EOF > ~/srv/fail2ban/.env
-            F2B_PORT=${F2B_PORT}
-            TZ=${TZ}
-            EOF
-            cd ~/srv/fail2ban && docker compose up -d --build --force-recreate
-
-            # Maintenance
-            docker image prune -f
+            F2B_PORT=${F2
