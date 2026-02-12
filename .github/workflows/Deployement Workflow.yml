@@ -44,7 +44,7 @@ jobs:
             # 2. Clonage et mise à jour des fichiers (Étapes 8 & 9)
             cd ~
             rm -rf temp_repo
-            git clone https://x-access-token:${GH_TOKEN}@github.com/Wmartel31/Serveur-Internet-Sample-Project.git temp_repo
+            git clone https://x-access-token:${GH_TOKEN}@github.com/Elerig22/Serveur-Internet-Sample-Project.git temp_repo
             mkdir -p ~/srv
             cp -r ~/temp_repo/srv/* ~/srv/
             rm -rf ~/temp_repo
