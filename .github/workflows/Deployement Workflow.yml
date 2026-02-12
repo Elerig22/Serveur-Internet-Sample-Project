@@ -15,29 +15,22 @@ jobs:
       - name: Deploy on remote server
         uses: appleboy/ssh-action@v1.2.0
         env:
-          # On mappe TOUS vos secrets ici
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           DOMAIN: ${{ secrets.DOMAIN }}
-          NETWORK_NAME: ${{ secrets.NETWORK_NAME }}
+          # ATTENTION : vérifiez si votre secret est NETWORK_NAME ou NETWORK_NAM
+          NETWORK_NAME: ${{ secrets.NETWORK_NAME }} 
           TRAEFIK_SUBDOMAIN: ${{ secrets.TRAEFIK_SUBDOMAIN }}
-          AUTH_MIDDLEWARE: ${{ secrets.AUTH_MIDDLEWARE }}
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          DB_USER: ${{ secrets.DB_USER }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          UPTIME_SUBDOMAIN: ${{ secrets.UPTIME_SUBDOMAIN }}
-          WIKI_SUBDOMAIN: ${{ secrets.WIKI_SUBDOMAIN }}
-          TASKLIST_SUBDOMAIN: ${{ secrets.TASKLIST_SUBDOMAIN }}
+          # Ajoutez ici toutes les variables dont le backend a besoin
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # On les injecte dans la session SSH (vérifiez bien l'orthographe de NETWORK_NAME)
-          envs: GH_TOKEN,DOMAIN,NETWORK_NAME,TRAEFIK_SUBDOMAIN,AUTH_MIDDLEWARE,DB_HOST,DB_NAME,DB_USER,DB_PASSWORD,UPTIME_SUBDOMAIN,WIKI_SUBDOMAIN,TASKLIST_SUBDOMAIN
+          envs: GH_TOKEN,DOMAIN,NETWORK_NAME,TRAEFIK_SUBDOMAIN,DB_PASSWORD
           script: |
-            # 1. Création du réseau (primordial pour l'erreur 'network not found')
-            # Si votre secret s'appelle NETWORK_NAM (sans E), utilisez $NETWORK_NAM
-            docker network create ${NETWORK_NAME} || true
+            # 1. Vérification de sécurité pour le réseau
+            if [ -z "$NETWORK_NAME" ]; then NETWORK_NAME="web-proxy"; fi
+            docker network create $NETWORK_NAME || true
             
             # 2. Préparation du dossier
             mkdir -p ~/srv/traefik && cd ~/srv/traefik
@@ -47,10 +40,13 @@ jobs:
             git clone https://x-access-token:${GH_TOKEN}@github.com/Wmartel31/Serveur-Internet-Sample-Project.git
             cd Serveur-Internet-Sample-Project
             
-            # 4. Lancement avec injection forcée des variables
-            # On utilise 'export' pour être sûr que Docker Compose les voit
-            export DOMAIN=$DOMAIN
-            export NETWORK_NAME=$NETWORK_NAME
-            export TRAEFIK_SUBDOMAIN=$TRAEFIK_SUBDOMAIN
+            # 4. CRÉATION DU FICHIER .ENV (C'est ce qui manquait !)
+            # On crée le fichier pour que Docker ne râle plus
+            cat <<EOF > backend/.env
+            DB_PASSWORD=${DB_PASSWORD}
+            DOMAIN=${DOMAIN}
+            NETWORK_NAME=${NETWORK_NAME}
+            EOF
             
+            # 5. Lancement
             docker compose up -d --build
