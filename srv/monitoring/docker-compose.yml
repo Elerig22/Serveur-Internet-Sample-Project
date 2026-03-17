@@ -10,7 +10,7 @@ services:
       - proxy
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.uptime-kuma.rule=Host(`${UPTIME_SUBDOMAIN}.${DOMAIN}`)"
+      - "traefik.http.routers.uptime-kuma.rule=Host(`uptime.elerig.fr`)"
       - "traefik.http.routers.uptime-kuma.entrypoints=websecure"
       - "traefik.http.routers.uptime-kuma.tls=true"
       - "traefik.http.services.uptime-kuma.loadbalancer.server.port=${UPTIME_PORT}"
