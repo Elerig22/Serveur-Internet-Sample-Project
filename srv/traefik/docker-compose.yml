@@ -33,7 +33,7 @@ services:
       - "traefik.http.routers.traefik.entrypoints=websecure"
       - "traefik.http.routers.traefik.service=api@internal"
       - "traefik.http.routers.traefik.tls=true"
-      - "traefik.http.routers.traefik.middlewares=${AUTH_MIDDLEWARE}"
+      # - "traefik.http.routers.traefik.middlewares=${AUTH_MIDDLEWARE}"
 
 networks:
   proxy:
