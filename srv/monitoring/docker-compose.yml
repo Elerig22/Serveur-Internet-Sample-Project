@@ -13,7 +13,7 @@ services:
       - "traefik.http.routers.uptime-kuma.rule=Host(`uptime.elerig.fr`)"
       - "traefik.http.routers.uptime-kuma.entrypoints=websecure"
       - "traefik.http.routers.uptime-kuma.tls=true"
-      - "traefik.http.services.uptime-kuma.loadbalancer.server.port=8080"
+      - "traefik.http.services.uptime-kuma.loadbalancer.server.port=3001"
 
 networks:
   proxy:
